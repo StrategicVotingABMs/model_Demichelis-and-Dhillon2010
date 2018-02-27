@@ -19,9 +19,9 @@ from __main__ import *
 class Dataset(object):
     
     def __init__(self, nRows=0):
-        self.names = [None] * nRows
+        self.names = []
         self.data = {}
-        self.nRows = None
+        self.nRows = nRows
 
     def __setitem__(self, access, item):
         rowIndex = access[0]
@@ -75,6 +75,7 @@ class Dataset(object):
             for col in range(0, nCols):
                 variableName = self.names[col]
                 value = self.data[variableName][row]
+                value = "NA" if value is None else value
                 line[col] = value
             csvData.writerow(line)
         outputFile.close()

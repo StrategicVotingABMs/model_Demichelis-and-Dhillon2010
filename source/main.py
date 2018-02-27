@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-@what: ABM implementation of Stefano and Amrita (2010)
+@what: ABM implementation of Demichelis and Dhillon (2010)
 """
 
 #It is important to import the project's other files after setting the seed
@@ -10,6 +10,7 @@ import random as rng
 import numpy as np
 from scipy.stats import skellam
 from debug import Debug
+from dataset import Dataset
 
 #to turn printing off/on, simply set the following to False/True
 Debug.isOn = True
@@ -117,5 +118,9 @@ while iter < MAX_ITER:
     
 Debug.Print("Ended after " + str(iter) + " iterations.")
 
+
+a = Dataset()
+a[3,"varname"] = 13
+a.saveToFile("output.csv")
 
 
