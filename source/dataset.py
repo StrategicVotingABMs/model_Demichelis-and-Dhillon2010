@@ -21,14 +21,14 @@ class Dataset(object):
     def __init__(self, nRows=0):
         self.names = []
         self.data = {}
-        self.nRows = nRows
+        self.__nRows = nRows
 
     def __setitem__(self, access, item):
         rowIndex = access[0]
         colName = str(access[1])
         
-        if self.nRows is None or rowIndex > self.nRows-1:
-            self.nRows = rowIndex+1
+        if self.__nRows is None or rowIndex > self.__nRows-1:
+            self.__nRows = rowIndex+1
             for key in self.data:
                 for row in range(0,rowIndex):
                     self.data[key].append(None)
@@ -37,7 +37,7 @@ class Dataset(object):
             self.data[colName][rowIndex] = item
         else:
             self.names.append(colName)
-            newCol = [None] * self.nRows
+            newCol = [None] * self.__nRows
             newCol[rowIndex] = item
             self.data[colName] = newCol
 
@@ -45,8 +45,8 @@ class Dataset(object):
         rowIndex = access[0]
         colName = access[1]
         
-        if rowIndex > self.nRows-1:
-            print "ERROR: dataset has only " + str(self.nRows) + " rows."
+        if rowIndex > self.__nRows-1:
+            print "ERROR: dataset has only " + str(self.__nRows) + " rows."
             return None
         if colName not in self.data:
             print "ERROR: dataset does not have variable " + colName + "."
@@ -54,12 +54,18 @@ class Dataset(object):
         return self.data[colName][rowIndex]
         
     def nRows(self):
-        return self.nRows
+        return self.__nRows
         
     def nCols(self):
         return len(self.data)
         
     def saveToFile(self, fileName):
+        self.__saveMethod(fileName)
+        
+    def saveRowToFile(self, rowToSave, fileName):
+        self.__saveMethod(fileName, rowToSave)
+        
+    def __saveMethod(self, fileName, whichRow=None):
         outputFile = open(fileName, 'wb')
         csvData = csv.writer(outputFile, lineterminator='\n')
 
@@ -70,12 +76,13 @@ class Dataset(object):
             line[col] = self.names[col]
         csvData.writerow(line)
 
-        for row in range(0,self.nRows):
-            line = [None] * nCols
-            for col in range(0, nCols):
-                variableName = self.names[col]
-                value = self.data[variableName][row]
-                value = "NA" if value is None else value
-                line[col] = value
-            csvData.writerow(line)
+        for row in range(0,self.__nRows):
+            if row == whichRow or whichRow is None:
+                line = [None] * nCols
+                for col in range(0, nCols):
+                    variableName = self.names[col]
+                    value = self.data[variableName][row]
+                    value = "NA" if value is None else value
+                    line[col] = value
+                csvData.writerow(line)
         outputFile.close()

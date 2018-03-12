@@ -1,4 +1,6 @@
 from __main__ import *
+from globalVariables import *
+
 
 class Elector(object):
     
@@ -11,7 +13,10 @@ class Elector(object):
         
         self.B = DIFF_EXPEC_BENEFIT
         self.c = GLOBAL_COST_DUTY
-        self.q = np.random.uniform(0,1)
+        if IDENTICAL_Qs:
+            self.q = IDENTICAL_Qs
+        else:
+            self.q = np.random.uniform(0+Q_UNIF_PARAM,1-Q_UNIF_PARAM)
          
     def __repr__(self):
         return str(self.__ID)
@@ -46,10 +51,10 @@ class Elector(object):
         else:
             print "ERROR: elector " + str(self.ID) + " has no prefered candidate."
     
-        return result * rescale_factor
+        return result * G_RESCALE_FACTOR
    
     def K(self, n_A, n_B):
-        return Krescale_factor * np.sign( self.g(n_A, n_B) - 2*self.c)
+        return K_RESCALE_FACTOR * np.sign( self.g(n_A, n_B) - 2*self.c)
     
     # q is initialized randomly, but it needs to be updated at each iteration    
     def update_q(self, n_A, n_B):
