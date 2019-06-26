@@ -1,112 +1,81 @@
-#-----------------------------------------------------------------------------#
-#
-# Combined model: Cox (1994)'s Wasted Vote and Demichelis and Dhillon (2010)'s
-#                 Strategic Abstention
-# Date: 06-23-2018
-#
-#-----------------------------------------------------------------------------#
+# -*- coding: utf-8 -*-
+"""
+@what: ABM implementation of Demichelis and Dhillon (2010)
+"""
+
+#from __main__ import *
 
 
-#-----------------------------------------------------------------------------#
-# Engine commands (first lines required in ALL models; MAY NOT be changed)
-#-----------------------------------------------------------------------------#
-# from metadata import *
-# model_metadata = get_model_metadata()
-class Debug(object):
-    
-    isOn = False
-    
-    @staticmethod
-    def Print(*args, **kwargs):
-        print("".join(map(str,args)), **kwargs)
-
-    @staticmethod
-    def PrintIf(condition, *args, **kwargs):
-        if condition:    
-            print("".join(map(str,args)), **kwargs)
-
-
-#-----------------------------------------------------------------------------#
-# Importing libraries
-#-----------------------------------------------------------------------------#
-import copy
-import importlib
-import mpmath as mp
+#It is important to import the project's other files after setting the seed
+#to assure that the same seed will be used throughout
+import csv
+import random as rng
 import numpy as np
 from scipy.stats import skellam
-import time
-
-
-#-----------------------------------------------------------------------------#
-#
-# Hierarchical pseudo-RNG seeding
-#
-#-----------------------------------------------------------------------------#
-mainSeed = np.random.randint(0, (2**32-1)/2)
-Debug.Print("Started seed: " + str(mainSeed))
-
-generalRNG = np.random.RandomState()
-generalRNG.seed(mainSeed)
-
-mainParamsRNG = np.random.RandomState(generalRNG.randint(0, (2**32-1)/2, 1)[0])
-cParamsRNG = np.random.RandomState(generalRNG.randint(0, (2**32-1)/2, 1)[0])
-qRNG = np.random.RandomState(generalRNG.randint(0, (2**32-1)/2, 1)[0])
-cRNG = np.random.RandomState(generalRNG.randint(0, (2**32-1)/2, 1)[0])
-utilsRNG = np.random.RandomState(generalRNG.randint(0, (2**32-1)/2, 1)[0])
-
-
-#-----------------------------------------------------------------------------#
-#
-# Main simulation
-# Strategic Abstention (Demichelis and Dhillon, 2010)
-#
-#-----------------------------------------------------------------------------#
-initTime = time.time()
-
-import globalFunctions as GlobalFuncs
-importlib.reload(GlobalFuncs)
-
-import globalVariables
-importlib.reload(globalVariables)
+from debug import Debug
+from dataset import Dataset
 from globalVariables import *
+from electorClass import Elector
 
-import electorClass
-importlib.reload(electorClass)
-from electorClass import *
 
-# outputs = DatabaseAPI(mainSeed, model_metadata)
+#to turn printing off/on, simply set the following to False/True
+Debug.isOn = False
 
+
+seed = rng.randint(0, 2**32-1)
+#set seed for BOTH numpy and random
+rng.seed(seed)
+np.random.seed(seed)
+
+Debug.Print(seed)
+
+output = Dataset(1)
 
 ################################################################################
 # Initializing the World
 ################################################################################
 
-electors = [None] * N_ELECTORS
-initialQs = [None] * N_ELECTORS
-costs = [None] * N_ELECTORS
-expVotes = [0] * N_PARTIES
-idealVotes = [0] *N_PARTIES
 
-ptyRankWeights = GlobalFuncs.randUtilities(N_PARTIES, UTILITIES_DISTRIBUTION, utilsRNG)
-ptyRankWeights = ptyRankWeights - min(ptyRankWeights) if min(ptyRankWeights) < 0 else ptyRankWeights
 
-for i in range(0, N_ELECTORS):
-    elector = Elector()
-    elector.defineUtilities(UTILITIES_DISTRIBUTION, ptyRankWeights)
-    idealVotes[elector.mostPreferred] += 1
-    elector.cost = cRNG.beta(COST_BETA_PARAM, COST_BETA_PARAM, 1)[0] if not IDENTICAL_Cs else IDENTICAL_Cs
-    costs[i] = elector.cost
-    elector.voteProb = qRNG.uniform(0,1) if not IDENTICAL_Qs else IDENTICAL_Qs
-    expVotes[elector.currentVote] += elector.voteProb
-    initialQs[i] = elector.voteProb
-    electors[i] = elector
 
-# import matplotlib.pyplot as plt
-# plt.bar(range(len(idealVotes)),idealVotes);plt.show()
-# import sys
-# sys.exit()
+Debug.Print("rescale factor is: " + str(G_RESCALE_FACTOR))
 
-Debug.Print("initial expected votes: " + str(expVotes))
+# Initialize mu_A and mu_B randomly 
+mu_A = N_VOTERS_PREF_A = int(np.random.uniform(0, N_VOTERS))
+mu_B = N_VOTERS_PREF_B = N_VOTERS - mu_A
+
+Debug.Print("mu_A is: " + str(mu_A))
+Debug.Print("mu_B is: " + str(mu_B))
+
+#First two alphas are drawn from a skellam distribution with some upward rescale
+alpha1 = skellam.pmf(0, mu_A, mu_B) #prob n1 == n2
+alpha2 = skellam.pmf(-1, mu_A, mu_B)  #prob n1 == n2 - 1
+alpha1 *= G_RESCALE_FACTOR
+alpha2 *= G_RESCALE_FACTOR
+
+Debug.Print("alpha1 is: " + str(alpha1))
+Debug.Print("alpha2 is: " + str(alpha2) + "\n")
+
+# Init empty lists of length N_VOTERS_PREF A and B
+electorsA = [None] * N_VOTERS_PREF_A
+electorsB = [None] * N_VOTERS_PREF_B
+
+
+
+n_A = 0
+for i in range(0, N_VOTERS_PREF_A):
+    elector = Elector("A")
+    n_A += elector.q
+    electorsA[i] = elector
+
+n_B = 0    
+for i in range(0, N_VOTERS_PREF_B):
+    elector = Elector("B")
+    n_B += elector.q
+    electorsB[i] = elector
+    
+Debug.Print("initial n_A: " + str(n_A))
+Debug.Print("initial n_B: " + str(n_B))
 Debug.Print("\n")
 
 
@@ -115,135 +84,75 @@ Debug.Print("\n")
 ################################################################################
 
 iter = 0
-hardConvergedIters = 0
-bounceConvergedIters = 0
-converged = False
-histExpecVotes = [[None] * N_PARTIES] * N_ITERS_FOR_CONVERGENCE
+convergedIters = 0
+pastN_As = [None] * N_ITERS_FOR_CONVERGENCE
+avgPastN_As = 0
 
-skellamCDFvals = {}
-skellam0PMFvals = {}
-skellam1PMFvals = {}
+while convergedIters < N_ITERS_FOR_CONVERGENCE and iter < MAX_ITER:
 
-while hardConvergedIters < N_ITERS_FOR_CONVERGENCE \
-    and bounceConvergedIters < N_ITERS_FOR_CONVERGENCE \
-    and iter < MAX_ITER:
-
-    Debug.PrintIf(iter%PRINT_AT_N_ITER == 0, "iteration " + str(iter) + "     seed: " + str(mainSeed) + "    k: " + str(Elector.learnRate) )
-
-    currentQs = [None] * N_ELECTORS
-
-    newExpecVotes = [0] * N_PARTIES
-    for elector in electors:
-        elector.calcExpUtilities(expVotes, skellamCDFvals, skellam0PMFvals, skellam1PMFvals, ALGORITHM_UTILS_UPDATE)
-        elector.update_voteProb()
-        newExpecVotes[elector.currentVote] += elector.voteProb
-        currentQs[elector.id] = elector.voteProb
+    Debug.PrintIf(iter%PRINT_AT_N_ITER == 0, "iteration " + str(iter))
+    Debug.PrintIf(iter%PRINT_AT_N_ITER == 0, "first elector's q: " + str(electorsA[0].q))
     
-    Debug.PrintIf(iter%PRINT_AT_N_ITER == 0, "new expected votes: " + str(newExpecVotes))
+    new_n_A = 0
+    for elector in electorsA:
+        elector.update_q(n_A, n_B)
+        new_n_A += elector.q
+    
+    new_n_B = 0
+    for elector in electorsB:
+        elector.update_q(n_A, n_B)
+        new_n_B += elector.q
 
-    expVotes = copy.deepcopy(newExpecVotes)
+    Debug.PrintIf(iter%PRINT_AT_N_ITER == 0, "new n_A: " + str(new_n_A))
+    Debug.PrintIf(iter%PRINT_AT_N_ITER == 0, "new n_B: " + str(new_n_B))
 
-    # outputs["avgQ"] = np.mean(currentQs)
-    # for pty in range(N_PARTIES):
-    #   outputs["n_" + pty] = expVotes[pty]
-
-    Debug.PrintIf(iter%PRINT_AT_N_ITER == 0, "first elector's q: " + str(electors[0].voteProb))
+    n_A = new_n_A
+    n_B = new_n_B
     
     #Check for convergence:
-    expVotesIdenticalToLast = True
-    expVotesBouncing = True
     if iter < N_ITERS_FOR_CONVERGENCE:
-        histExpecVotes[iter] = copy.deepcopy(expVotes)
+        pastN_As[iter] = n_A
     else:
-        for idx in range(N_ITERS_FOR_CONVERGENCE-1):
-            histExpecVotes[idx] = copy.deepcopy(histExpecVotes[idx+1])
-            for j in range(N_PARTIES):
-                expVotesIdenticalToLast = expVotesIdenticalToLast and abs(expVotes[j] - histExpecVotes[idx][j]) < EPSILON
-                if idx > 1:
-                    expVotesBouncing = expVotesBouncing and abs(histExpecVotes[idx][j] - histExpecVotes[idx-2][j]) < EPSILON
-        histExpecVotes[N_ITERS_FOR_CONVERGENCE-1] = copy.deepcopy(expVotes)
-        
-        if expVotesIdenticalToLast:
-            hardConvergedIters += 1
-        else:
-            hardConvergedIters = 0
-
-        if expVotesBouncing:
-            bounceConvergedIters += 1
-        else:
-            bounceConvergedIters = 0
-
-        # Decreasing K (learning rate) when bouncing convergence is detected:
-        if DECREASING_K and bounceConvergedIters >= N_ITERS_FOR_CONVERGENCE:
-             bounceConvergedIters = 0
-             Elector.learnRate /= 10
-             EPSILON = Elector.learnRate /10
+        for i in range(N_ITERS_FOR_CONVERGENCE-1):
+            avgPastN_As += pastN_As[i]
+            pastN_As[i] = pastN_As[i+1]
+        pastN_As[N_ITERS_FOR_CONVERGENCE-1] = n_A
+        avgPastN_As /= N_ITERS_FOR_CONVERGENCE
+    
+    if round(n_A,0) == round(avgPastN_As,0):
+        convergedIters += 1
+    else:
+        convergedIters = 0
     
     Debug.PrintIf(iter%PRINT_AT_N_ITER == 0, "\n")
     
-    # for elector in electors:
-    #     outputs["elec" + str(elector) + "q"] = float(elector.voteProb)
-    #     outputs["elec" + str(elector) + "vote"] = int(elector.mostPreferred)
-
-    if hardConvergedIters >= N_ITERS_FOR_CONVERGENCE or bounceConvergedIters >= N_ITERS_FOR_CONVERGENCE:
-        converged = True
-
-    # outputs.saveIterationToDatabase(iter, converged)
-
     iter += 1
-    #end of the main while-loop
 
-
-#after model stops:
-if hardConvergedIters >= N_ITERS_FOR_CONVERGENCE:
-    convergenceType = "hard_convergence"
-elif bounceConvergedIters >= N_ITERS_FOR_CONVERGENCE:
-    convergenceType = "bouncing_convergence"
-else:
-    convergenceType = "max_iteration_reached"
-
-
-Debug.Print("Final expected votes: " + str(expVotes))
 Debug.Print("Ended after " + str(iter) + " iterations.")
-Debug.Print("With " + convergenceType + " convergence")
-Debug.Print("Took " + str(round(time.time() - initTime, 3)) + " seconds.")
-
-
-# outputs.update(TABLE_SIMULATIONS, T_SIM_VAR_EQUILIBRIUM_TYPE, convergenceType)
-# outputs.update(TABLE_SIMULATIONS, T_SIM_VAR_RUNTIME, time.time() - initTime)
-# outputs.update(TABLE_SIMULATIONS, T_SIM_VAR_TIME_CURRENT, 'current_timestamp')
-
-Debug.Print("Finished seed: " + str(mainSeed) + " after " + str(round(time.time() - initTime, 3)) + " seconds.\n")
 
 
 ################################################################################
-# Saving variables that are fixed across iterations:
+# Saving output of the convergence iteration:
 ################################################################################
-# globalVars = {}
-# globalVars["nElectors"] = N_ELECTORS
-# for pty in range(N_PARTIES):
-#     globalVars["sincereN_" + pty] = idealVotes[pty]
-# globalVars["identical_Cs"] = not bool(IDENTICAL_Cs is False)
-# globalVars["avgInitialCs"] = float(np.mean(costs))
-# globalVars["sdInitialCs"] = float(np.std(costs))
-# globalVars["identical_Qs"] = not bool(IDENTICAL_Qs is False)
-# globalVars["avgInitialQs"] = float(np.mean(initialQs))
-# globalVars["sdInitialQs"] = float(np.std(initialQs))
-# globalVars["decreasingK"] = DECREASING_K
-# globalVars["costBetaParam"] = COST_BETA_PARAM
-# globalVars["initK"] = Elector.learnRate
-# globalVars["final"] = Elector.learnRate
-# for pty in range(N_PARTIES):
-#     globalVars["finalN_" + pty] = expVotes[pty]
-# for elector in electors:
-#     globalVars["elec" + str(elector) + "c"] = float(elector.cost)
-#     globalVars["elec" + str(elector) + "initQ"] = initialQs[elector.id]
-#     globalVars["elec" + str(elector) + "finalQ"] = elector.voteProb
-    
-# outputs.update(TABLE_SIMULATIONS, T_SIM_VAR_SIM_VARS, globalVars)
+output[0, "seed"] = seed
+
+output[0, "mu_A"] = mu_A
+output[0, "mu_B"] = mu_B
+
+output[0, "identical_qs"] = IDENTICAL_Qs
+output[0, "c"] = GLOBAL_COST_DUTY
+output[0, "k_rescale"] = K_RESCALE_FACTOR
+output[0, "g_rescale"] = G_RESCALE_FACTOR
+
+output[0, "iter"] = iter
+
+output[0, "n_A"] = n_A
+output[0, "n_B"] = n_B
 
 
-#-----------------------------------------------------------------------------#
-# End of file main.py
-#-----------------------------------------------------------------------------#
+for elector in electorsA:
+    output[0, "q_elec" + str(elector) + "ofA"] = elector.q
+for elector in electorsB:
+    output[0, "q_elec" + str(elector) + "ofB"] = elector.q
 
+output.saveToFile(SAVE_FOLDER_CONVERGED + "detailed_" + str(seed) + ".csv")
