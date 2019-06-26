@@ -1,29 +1,45 @@
 from __main__ import *
 
 #-----------------------------------------------------------------------------#
-#Global variables:
+# Global variables:
 #-----------------------------------------------------------------------------#
-MAX_ITER = 1000
+
+INFINITY = float('inf')
+MACHINE_EPSILON = np.finfo(float).eps
+
+### Initialize basic parameter values:
+N_ELECTORS = int(mainParamsRNG.poisson(10000, 1)[0])
+N_PARTIES = mainParamsRNG.randint(2,6)
+MAX_ITER = 100000
+N_ITERS_FOR_CONVERGENCE = 50
 PRINT_AT_N_ITER = 1
-SAVING_INTERVAL = 1
-SAVE_FOLDER_DETAILED = "outputs_detailed/"
-SAVE_FOLDER_CONVERGED = "outputs_converged/"
-N_VOTERS = 1000             #N in the paper, must be natural
+DECREASING_K = True
 
-N_ITERS_FOR_CONVERGENCE = 10
+### How to handle utilities:
+RESCALE_UTILITIES = True
+UTILITIES_DISTRIBUTION = "powerlaw"
 
-TIED_CASE = skellam.pmf(0, N_VOTERS/2, N_VOTERS/2)
-ONE_BEHIND_CASE = skellam.pmf(-1, N_VOTERS/2, N_VOTERS/2)
+#Calculates elector's expected utilities of candidates. Notice that
+#algorithm type has to be defined, among the options:
+#"naive_64bits_precision": no memoization, double precision
+#"mem_64bits_precision": memoized, double precision
+#"mem_arbitrary_precision": memoized, arbitrary precision
+ALGORITHM_UTILS_UPDATE = "mem_64bits_precision"
 
-IDENTICAL_Qs = np.random.choice([False,np.random.uniform(0,1)], 1)[0]
-Q_UNIF_PARAM = np.random.uniform(0,0.5)
+### Initialize learning rate K and the epsilon factor:
+K_RESCALE_FACTOR = 0.001
+EPSILON = K_RESCALE_FACTOR /10
+    
+### defining whether Qs start identical or not:
+#IDENTICAL_Qs = qRNG.choice([False, round(qRNG.uniform(0,1,1)[0], 2)], 1)[0]
+IDENTICAL_Qs = False #round(qRNG.uniform(0,1,1)[0],2)
 
-# GLOBAL_COST_DUTY is little c in paper
-GLOBAL_COST_DUTY = np.random.uniform(0,0.5) #(alpha1 + alpha2)/2 * 0.1
-# We use the rescale factor so we are not stuck with really small alphas
-K_RESCALE_FACTOR = np.random.uniform(0.00000000001,0.001)
-
-G_RESCALE_FACTOR = 1 #1/(TIED_CASE+ONE_BEHIND_CASE)
+### initializing costs:
+IDENTICAL_Cs = False #round(cRNG.uniform(0,1,1)[0],2)
+COST_BETA_PARAM = cParamsRNG.choice([0.5, 1, 10], 1)[0]
 
 
-DIFF_EXPEC_BENEFIT = 1      #B in the paper; set to 1 on page 877
+#-----------------------------------------------------------------------------#
+# End of file globalVariables.py
+#-----------------------------------------------------------------------------#
+
